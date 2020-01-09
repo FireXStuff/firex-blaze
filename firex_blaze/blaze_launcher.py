@@ -13,7 +13,7 @@ from firex_blaze.blaze_helper import get_blaze_dir
 logger = setup_console_logging(__name__)
 
 
-def _get_blaze_command(uid, args, broker_recv_ready_file):
+def _create_blaze_command(uid, args, broker_recv_ready_file):
     return [qualify_firex_bin("firex_blaze"),
             "--uid", str(uid),
             "--logs_dir", uid.logs_dir,
@@ -47,6 +47,7 @@ class FireXBlazeLauncher(TrackingService):
 
     def start(self, args, uid=None, **kwargs)->{}:
         if args.disable_blaze:
+            logger.debug("Blaze disabled; will not launch subprocess.")
             self.is_ready_for_tasks = True
             return {}
 
@@ -57,7 +58,7 @@ class FireXBlazeLauncher(TrackingService):
 
         self.start_time = time.time()
         with open(self.stdout_file, 'w+') as f:
-            pid = subprocess.Popen(_get_blaze_command(uid, args, self.broker_recv_ready_file),
+            pid = subprocess.Popen(_create_blaze_command(uid, args, self.broker_recv_ready_file),
                                    stdout=f, stderr=subprocess.STDOUT,
                                    close_fds=True, env=select_env_vars(['PATH'])).pid
 
@@ -75,4 +76,5 @@ class FireXBlazeLauncher(TrackingService):
             self.is_ready_for_tasks = os.path.isfile(self.broker_recv_ready_file)
             if self.is_ready_for_tasks:
                 logger.debug("Blaze up after %.2f s" % (time.time() - self.start_time))
+
         return self.is_ready_for_tasks

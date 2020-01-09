@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import sys
+import signal
 
 # Prevent dependencies from taking module loading hit of pkg_resources.
 sys.modules["pkg_resources"] = type('noop', (object,), {})
@@ -48,6 +49,8 @@ def init_blaze():
     logging.basicConfig(filename=os.path.join(blaze_dir, 'blaze.log'), level=logging.DEBUG,
                         format='[%(asctime)s %(levelname)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     logger.info('Starting Blaze with args: %s' % args)
+
+    signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))
 
     if args.logs_url_base:
         logs_url = args.logs_url_base + args.logs_dir

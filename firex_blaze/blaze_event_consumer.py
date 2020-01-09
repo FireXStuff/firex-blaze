@@ -10,7 +10,7 @@ from kafka import KafkaProducer
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
 from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES
 
-from firex_blaze.blaze_helper import get_blaze_dir, BlazeSenderConfig, TASK_EVENT_TO_STATE
+from firex_blaze.blaze_helper import get_blaze_events_file, BlazeSenderConfig, TASK_EVENT_TO_STATE
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         self.firex_id = run_metadata.firex_id
         self.logs_url = logs_url
         self.kafka_topic = config.kafka_topic
-        self.recording_file = os.path.join(get_blaze_dir(run_metadata.logs_dir), 'kafka_events.json')
+        self.recording_file = get_blaze_events_file(run_metadata.logs_dir)
 
         self.producer = KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers)
         self.uuid_to_task_name_mapping = {}
@@ -51,13 +51,6 @@ class KafkaSenderThread(BrokerEventConsumerThread):
 
         if event['uuid'] == self.root_task['uuid']:
             self.root_task['is_complete'] = event.get('type') in COMPLETE_RUNSTATES
-
-    def _send_to_kafka(self, event):
-        logger.info('Sending %s (%s):%s to kafka' % (event['EVENTS'][0]['UUID'],
-                                                     event['EVENTS'][0]['DATA'].get('name'),
-                                                     event['EVENTS'][0]['DATA'].get('type')))
-
-        self.producer.send(self.kafka_topic, key=self.firex_id.encode('ascii'), value=json.dumps(event).encode('ascii'))
 
     def _get_kafka_event(self, event):
         uuid = event.pop('uuid')
@@ -85,11 +78,13 @@ class KafkaSenderThread(BrokerEventConsumerThread):
 
         if event.get('type') in SEND_EVENT_TYPES:
             kafka_event = self._get_kafka_event(event)
-            self._send_to_kafka(kafka_event)
+            self.producer.send(self.kafka_topic,
+                               key=self.firex_id.encode('ascii'),
+                               value=json.dumps(kafka_event).encode('ascii'))
 
             # Append the event to the recording file.
             with open(self.recording_file, "a") as rec:
-                rec.write(json.dumps(kafka_event, sort_keys=True, indent=2) + "\n")
+                rec.write(json.dumps(kafka_event, sort_keys=True) + "\n")
 
     def _on_cleanup(self):
         self.producer.flush()

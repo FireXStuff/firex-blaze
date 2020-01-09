@@ -16,6 +16,7 @@ setup(name='firex_blaze',
       zip_safe=True,
       install_requires=[
             'firexapp',
+            'kafka-python==1.3.4',
       ],
       entry_points={
           'console_scripts': [

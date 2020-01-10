@@ -46,8 +46,11 @@ def init_blaze():
 
     blaze_dir = get_blaze_dir(run_metadata.logs_dir)
     os.makedirs(blaze_dir, exist_ok=True)
-    logging.basicConfig(filename=os.path.join(blaze_dir, 'blaze.log'), level=logging.DEBUG,
-                        format='[%(asctime)s %(levelname)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+    logging.basicConfig(filename=os.path.join(blaze_dir, 'blaze.log'),
+                        level=logging.DEBUG,
+                        format='[%(asctime)s][%(levelname)s][%(name)s]: %(message)s',
+                        datefmt="%Y-%m-%d %H:%M:%S")
+    logging.getLogger('kafka').setLevel(logging.INFO)
     logger.info('Starting Blaze with args: %s' % args)
 
     signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))

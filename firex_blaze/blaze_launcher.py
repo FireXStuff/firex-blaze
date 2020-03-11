@@ -33,6 +33,10 @@ class FireXBlazeLauncher(TrackingService):
         self.start_time = None
 
     def extra_cli_arguments(self, arg_parser):
+
+        arg_parser.add_argument('--disable_blaze', '-disable_blaze',
+                                help='Disable blaze data collection', default=None, const=True, nargs='?')
+
         arg_parser.add_argument('--blaze_logs_url_base',
                                 help='Server URL from which logs can be fetched.',
                                 default=None)

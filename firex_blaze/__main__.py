@@ -50,7 +50,7 @@ def init_blaze():
                         level=logging.DEBUG,
                         format='[%(asctime)s][%(levelname)s][%(name)s]: %(message)s',
                         datefmt="%Y-%m-%d %H:%M:%S")
-    logging.getLogger('kafka.producer').setLevel(logging.INFO)
+    logging.getLogger('kafka.producer').setLevel(logging.DEBUG)
     logger.info('Starting Blaze with args: %s' % args)
 
     signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))

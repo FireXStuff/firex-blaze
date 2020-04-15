@@ -16,7 +16,7 @@ from firex_blaze.blaze_helper import get_blaze_events_file, BlazeSenderConfig, T
 logger = logging.getLogger(__name__)
 
 
-SEND_EVENT_TYPES = ('task-succeeded', 'task-failed', 'task-revoked', 'task-started', 'task-completed', 'task-results',
+SEND_EVENT_TYPES = ('task-succeeded', 'task-failed', 'task-revoked', 'task-started-info', 'task-completed', 'task-results',
                     'task-instrumentation')
 
 

@@ -14,7 +14,7 @@ BlazeSenderConfig = namedtuple('BlazeSenderConfig', ['kafka_topic', 'kafka_boots
 TASK_EVENT_TO_STATE = {
     'task-sent': 'PENDING',
     'task-received': 'RECEIVED',
-    'task-started': 'STARTED',
+    'task-started-info': 'STARTED',
     'task-failed': 'FAILURE',
     'task-retried': 'RETRY',
     'task-succeeded': 'SUCCESS',

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def celery_app_from_logs_dir(logs_dir):
-    return Celery(broker=RedisManager.get_broker_url_from_metadata(logs_dir))
+    return Celery(broker=RedisManager.get_broker_url_from_logs_dir(logs_dir))
 
 
 def _parse_blaze_args():

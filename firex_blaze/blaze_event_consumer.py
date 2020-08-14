@@ -69,6 +69,11 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         # Remove result since we only should report firex_result, not the native result
         event.pop('result', None)
 
+        # Add the event_timestamp (copy of the local_received), since the native timestamp that
+        # Celery provides is broken (its local time instead of UTC, and utcoffset is inaccurate).
+        # This piece of -redundant- data is just because Lumens can't make local_received query-able
+        event['event_timestamp'] = event['local_received']
+
         return {'FIREX_ID': self.firex_id, 'LOGS_URL': self.logs_url, 'EVENTS': [{'DATA': event, 'UUID': uuid}]}
 
     def _on_celery_event(self, event):

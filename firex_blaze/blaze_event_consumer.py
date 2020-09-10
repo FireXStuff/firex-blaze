@@ -4,7 +4,7 @@ Process events from Celery and put them on a kafka bus.
 
 import logging
 import json
-import os
+from getpass import getuser
 
 from kafka import KafkaProducer
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
@@ -32,6 +32,7 @@ class KafkaSenderThread(BrokerEventConsumerThread):
                  receiver_ready_file: str = None):
 
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
+        self.submitter = getuser()
         self.firex_id = run_metadata.firex_id
         self.logs_url = logs_url
         self.kafka_topic = config.kafka_topic
@@ -74,7 +75,11 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         # This piece of -redundant- data is just because Lumens can't make local_received query-able
         event['event_timestamp'] = event['local_received']
 
-        return {'FIREX_ID': self.firex_id, 'LOGS_URL': self.logs_url, 'EVENTS': [{'DATA': event, 'UUID': uuid}]}
+        return {'FIREX_ID': self.firex_id,
+                'SUBMITTER': self.submitter,
+                'LOGS_URL': self.logs_url,
+                'EVENTS': [{'DATA': event,
+                            'UUID': uuid}]}
 
     def _on_celery_event(self, event):
         if 'uuid' not in event:

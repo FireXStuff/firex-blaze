@@ -13,7 +13,7 @@ from firexapp.broker_manager.broker_factory import RedisManager
 from firexapp.events.model import FireXRunMetadata
 
 from firex_blaze.blaze_event_consumer import KafkaSenderThread
-from firex_blaze.blaze_helper import get_blaze_dir, BlazeSenderConfig
+from firex_blaze.blaze_helper import get_blaze_dir, BlazeSenderConfig, get_blaze_events_file
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ def celery_app_from_logs_dir(logs_dir):
 
 def _parse_blaze_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--instance_name", help="Name of the blaze instance")
     parser.add_argument("--logs_dir", help="Logs directory for the run to keep task data for.",
                         required=True)
     parser.add_argument("--uid", help="FireX UID for the run to keep task data for.",
@@ -44,7 +45,7 @@ def init_blaze():
 
     run_metadata = FireXRunMetadata(args.uid, args.logs_dir, None, None)
 
-    blaze_dir = get_blaze_dir(run_metadata.logs_dir)
+    blaze_dir = get_blaze_dir(run_metadata.logs_dir, args.instance_name)
     os.makedirs(blaze_dir, exist_ok=True)
     logging.basicConfig(filename=os.path.join(blaze_dir, 'blaze.log'),
                         level=logging.DEBUG,
@@ -62,13 +63,15 @@ def init_blaze():
 
     celery_app = celery_app_from_logs_dir(run_metadata.logs_dir)
     blaze_sender_config = BlazeSenderConfig(args.kafka_topic, args.bootstrap_servers.split(','))
-    return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, logs_url
+    recording_file = get_blaze_events_file(run_metadata.logs_dir, args.instance_name)
+    return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, logs_url, recording_file
 
 
 def main():
-    celery_app, run_metadata, receiver_ready_file, blaze_sender_config, logs_url = init_blaze()
+    celery_app, run_metadata, receiver_ready_file, blaze_sender_config, logs_url, recording_file = init_blaze()
     KafkaSenderThread(celery_app, run_metadata, blaze_sender_config, logs_url,
-                      receiver_ready_file=receiver_ready_file).run()
+                      receiver_ready_file=receiver_ready_file,
+                      recording_file=recording_file).run()
 
 
 if __name__ == '__main__':

@@ -13,18 +13,10 @@ from firex_blaze.blaze_helper import get_blaze_dir
 logger = setup_console_logging(__name__)
 
 
-def _create_blaze_command(uid, args, broker_recv_ready_file):
-    return [qualify_firex_bin("firex_blaze"),
-            "--uid", str(uid),
-            "--logs_dir", uid.logs_dir,
-            "--broker_recv_ready_file", broker_recv_ready_file,
-            '--logs_url_base', args.blaze_logs_url_base,
-            '--kafka_topic', args.blaze_kafka_topic,
-            '--bootstrap_servers', args.blaze_bootstrap_servers,
-            ]
-
 
 class FireXBlazeLauncher(TrackingService):
+
+    instance_name = 'blaze'
 
     def __init__(self):
         self.broker_recv_ready_file = None
@@ -49,20 +41,33 @@ class FireXBlazeLauncher(TrackingService):
                                 help='Comma separated list of Kafka bootrap servers.',
                                 default=None)
 
+
+    @classmethod
+    def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
+        return [qualify_firex_bin("firex_blaze"),
+                "--uid", str(uid),
+                "--logs_dir", uid.logs_dir,
+                "--broker_recv_ready_file", broker_recv_ready_file,
+                '--logs_url_base', args.blaze_logs_url_base,
+                '--kafka_topic', args.blaze_kafka_topic,
+                '--bootstrap_servers', args.blaze_bootstrap_servers,
+                '--instance_name', cls.instance_name,
+                ]
+
     def start(self, args, uid=None, **kwargs)->{}:
         if args.disable_blaze:
             logger.debug("Blaze disabled; will not launch subprocess.")
             self.is_ready_for_tasks = True
             return {}
 
-        blaze_debug_dir = get_blaze_dir(uid.logs_dir)
+        blaze_debug_dir = get_blaze_dir(uid.logs_dir, self.instance_name)
         os.makedirs(blaze_debug_dir, exist_ok=True)
         self.broker_recv_ready_file = os.path.join(blaze_debug_dir, 'blaze_celery_recvr_ready')
         self.stdout_file = os.path.join(blaze_debug_dir, 'blaze.stdout')
 
         self.start_time = time.time()
         with open(self.stdout_file, 'w+') as f:
-            pid = subprocess.Popen(_create_blaze_command(uid, args, self.broker_recv_ready_file),
+            pid = subprocess.Popen(self._create_blaze_command(uid, args, self.broker_recv_ready_file),
                                    stdout=f, stderr=subprocess.STDOUT,
                                    close_fds=True, env=select_env_vars(['PATH'])).pid
 

@@ -24,17 +24,19 @@ TASK_EVENT_TO_STATE = {
 }
 
 
-def get_blaze_dir(logs_dir):
-    return os.path.join(logs_dir, Uid.debug_dirname, 'blaze')
+def get_blaze_dir(logs_dir, instance_name=None):
+    if instance_name is None:
+        instance_name = 'blaze'
+    return os.path.join(logs_dir, Uid.debug_dirname, instance_name)
 
 
-def get_blaze_events_file(logs_dir):
-    return os.path.join(get_blaze_dir(logs_dir), 'kafka_events.json')
+def get_blaze_events_file(logs_dir, instance_name=None):
+    return os.path.join(get_blaze_dir(logs_dir, instance_name), 'kafka_events.json')
 
 
-def get_kafka_events(logs_dir):
+def get_kafka_events(logs_dir, instance_name=None):
     events = []
-    for line in Path(get_blaze_events_file(logs_dir)).read_text().splitlines():
+    for line in Path(get_blaze_events_file(logs_dir, instance_name)).read_text().splitlines():
         events.append(json.loads(line))
     return events
 

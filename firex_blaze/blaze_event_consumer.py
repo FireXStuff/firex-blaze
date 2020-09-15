@@ -10,7 +10,7 @@ from kafka import KafkaProducer
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
 from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES
 
-from firex_blaze.blaze_helper import get_blaze_events_file, BlazeSenderConfig, TASK_EVENT_TO_STATE
+from firex_blaze.blaze_helper import BlazeSenderConfig, TASK_EVENT_TO_STATE
 
 
 logger = logging.getLogger(__name__)
@@ -29,14 +29,15 @@ class KafkaSenderThread(BrokerEventConsumerThread):
                  config: BlazeSenderConfig,
                  logs_url: str,
                  max_retry_attempts: int = None,
-                 receiver_ready_file: str = None):
+                 receiver_ready_file: str = None,
+                 recording_file: str = None):
 
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
         self.submitter = getuser()
         self.firex_id = run_metadata.firex_id
         self.logs_url = logs_url
         self.kafka_topic = config.kafka_topic
-        self.recording_file = get_blaze_events_file(run_metadata.logs_dir)
+        self.recording_file = recording_file
 
         self.producer = KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers)
         self.uuid_to_task_name_mapping = {}

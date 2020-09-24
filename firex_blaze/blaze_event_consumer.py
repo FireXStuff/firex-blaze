@@ -49,6 +49,10 @@ def get_basic_event(name, type, event_timestamp=time.time()):
     return event_data
 
 
+class NoNameForEvent(Exception):
+    pass
+
+
 class KafkaSenderThread(BrokerEventConsumerThread):
     """Captures Celery events and puts them on a Kafka bus."""
 
@@ -93,8 +97,8 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         if uuid in self.uuid_to_task_name_mapping:
             name = self.uuid_to_task_name_mapping[uuid]
         else:
-            logger.error(f'No name found for {event}; can not send the event')
-            return
+            # No need to produce this event since it won't be processed by Lumens anyways
+            raise NoNameForEvent(f'No name found for {event}; can not send the event')
 
         # Remove result since we only should report firex_result, not the native result
         event.pop('result', None)
@@ -122,15 +126,19 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         self._update_root_task(event)
 
         if event.get('type') in SEND_EVENT_TYPES:
-            kafka_event = self._get_kafka_event(event)
-            send_kafka_mssg(kafka_producer=self.producer,
-                            kafka_mssg=kafka_event,
-                            kafka_topic=self.kafka_topic,
-                            firex_id=self.firex_id)
+            try:
+                kafka_event = self._get_kafka_event(event)
+            except NoNameForEvent as e:
+                logger.exception(e)
+            else:
+                send_kafka_mssg(kafka_producer=self.producer,
+                                kafka_mssg=kafka_event,
+                                kafka_topic=self.kafka_topic,
+                                firex_id=self.firex_id)
 
-            # Append the event to the recording file.
-            with open(self.recording_file, "a") as rec:
-                rec.write(json.dumps(kafka_event, sort_keys=True, indent=2) + KAFKA_EVENTS_FILE_DELIMITER)
+                # Append the event to the recording file.
+                with open(self.recording_file, "a") as rec:
+                    rec.write(json.dumps(kafka_event, sort_keys=True, indent=2) + KAFKA_EVENTS_FILE_DELIMITER)
 
     def _on_cleanup(self):
         self.producer.flush()

@@ -9,6 +9,9 @@ import json
 from firexapp.submit.uid import Uid
 from kafka.consumer.fetcher import ConsumerRecord
 
+KAFKA_EVENTS_FILE_DELIMITER = '--END_OF_EVENT--'
+
+
 BlazeSenderConfig = namedtuple('BlazeSenderConfig', ['kafka_topic', 'kafka_bootstrap_servers'])
 
 TASK_EVENT_TO_STATE = {
@@ -36,8 +39,9 @@ def get_blaze_events_file(logs_dir, instance_name=None):
 
 def get_kafka_events(logs_dir, instance_name=None):
     events = []
-    for line in Path(get_blaze_events_file(logs_dir, instance_name)).read_text().splitlines():
-        events.append(json.loads(line))
+    for event in Path(get_blaze_events_file(logs_dir, instance_name)).read_text().split(sep=KAFKA_EVENTS_FILE_DELIMITER):
+        if event:
+            events.append(json.loads(event))
     return events
 
 

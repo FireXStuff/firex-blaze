@@ -4,20 +4,49 @@ Process events from Celery and put them on a kafka bus.
 
 import logging
 import json
+import time
 from getpass import getuser
 
 from kafka import KafkaProducer
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
 from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES
 
-from firex_blaze.blaze_helper import BlazeSenderConfig, TASK_EVENT_TO_STATE
-
+from firex_blaze.blaze_helper import BlazeSenderConfig, TASK_EVENT_TO_STATE, KAFKA_EVENTS_FILE_DELIMITER
 
 logger = logging.getLogger(__name__)
 
-
 SEND_EVENT_TYPES = ('task-succeeded', 'task-failed', 'task-revoked', 'task-started-info', 'task-completed', 'task-results',
                     'task-instrumentation')
+
+
+def format_kafka_message(firex_id, event_data, uuid, logs_url=None, submitter=getuser()):
+    mssg = {'FIREX_ID': firex_id,
+            'SUBMITTER': submitter,
+            'EVENTS': [{'DATA': event_data,
+                        'UUID': uuid}]}
+
+    if logs_url:
+        mssg['LOGS_URL'] = logs_url
+
+    return mssg
+
+
+def send_kafka_mssg(kafka_producer, kafka_mssg, kafka_topic, firex_id):
+    kafka_producer.send(topic=kafka_topic,
+                        value=json.dumps(kafka_mssg).encode('ascii'),
+                        key=firex_id.encode('ascii'))
+
+
+def get_basic_event(name, type, event_timestamp=time.time()):
+    event_data = {'name': name,
+                  'type': type,
+                  'event_timestamp': event_timestamp}
+
+    # Not all types map to states (e.g. task-results), so only populate state for some event types.
+    if type in TASK_EVENT_TO_STATE:
+        event_data['state'] = TASK_EVENT_TO_STATE[type]
+
+    return event_data
 
 
 class KafkaSenderThread(BrokerEventConsumerThread):
@@ -62,11 +91,10 @@ class KafkaSenderThread(BrokerEventConsumerThread):
             self.uuid_to_task_name_mapping[uuid] = event['long_name']
 
         if uuid in self.uuid_to_task_name_mapping:
-            event['name'] = self.uuid_to_task_name_mapping[uuid]
-
-        # Not all types map to states (e.g. task-results), so only populate state for some event types.
-        if event.get('type') in TASK_EVENT_TO_STATE:
-            event['state'] = TASK_EVENT_TO_STATE[event.get('type')]
+            name = self.uuid_to_task_name_mapping[uuid]
+        else:
+            logger.error(f'No name found for {event}; can not send the event')
+            return
 
         # Remove result since we only should report firex_result, not the native result
         event.pop('result', None)
@@ -74,13 +102,18 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         # Add the event_timestamp (copy of the local_received), since the native timestamp that
         # Celery provides is broken (its local time instead of UTC, and utcoffset is inaccurate).
         # This piece of -redundant- data is just because Lumens can't make local_received query-able
-        event['event_timestamp'] = event['local_received']
 
-        return {'FIREX_ID': self.firex_id,
-                'SUBMITTER': self.submitter,
-                'LOGS_URL': self.logs_url,
-                'EVENTS': [{'DATA': event,
-                            'UUID': uuid}]}
+        basic_event_data = get_basic_event(name=name,
+                                           type=event.get('type'),
+                                           event_timestamp=event['local_received'])
+
+        event.update(**basic_event_data)
+
+        return format_kafka_message(firex_id=self.firex_id,
+                                    event_data=event,
+                                    uuid=uuid,
+                                    logs_url=self.logs_url,
+                                    submitter=self.submitter)
 
     def _on_celery_event(self, event):
         if 'uuid' not in event:
@@ -90,13 +123,14 @@ class KafkaSenderThread(BrokerEventConsumerThread):
 
         if event.get('type') in SEND_EVENT_TYPES:
             kafka_event = self._get_kafka_event(event)
-            self.producer.send(self.kafka_topic,
-                               key=self.firex_id.encode('ascii'),
-                               value=json.dumps(kafka_event).encode('ascii'))
+            send_kafka_mssg(kafka_producer=self.producer,
+                            kafka_mssg=kafka_event,
+                            kafka_topic=self.kafka_topic,
+                            firex_id=self.firex_id)
 
             # Append the event to the recording file.
             with open(self.recording_file, "a") as rec:
-                rec.write(json.dumps(kafka_event, sort_keys=True) + "\n")
+                rec.write(json.dumps(kafka_event, sort_keys=True, indent=2) + KAFKA_EVENTS_FILE_DELIMITER)
 
     def _on_cleanup(self):
         self.producer.flush()

@@ -19,16 +19,12 @@ SEND_EVENT_TYPES = ('task-succeeded', 'task-failed', 'task-revoked', 'task-start
                     'task-instrumentation')
 
 
-def format_kafka_message(firex_id, event_data, uuid, logs_url=None, submitter=getuser()):
-    mssg = {'FIREX_ID': firex_id,
+def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser()):
+    return {'FIREX_ID': firex_id,
             'SUBMITTER': submitter,
+            'LOGS_URL': logs_url,               # Shouldn't be required, but Lumens needs it!
             'EVENTS': [{'DATA': event_data,
                         'UUID': uuid}]}
-
-    if logs_url:
-        mssg['LOGS_URL'] = logs_url
-
-    return mssg
 
 
 def send_kafka_mssg(kafka_producer, kafka_mssg, kafka_topic, firex_id):
@@ -37,14 +33,18 @@ def send_kafka_mssg(kafka_producer, kafka_mssg, kafka_topic, firex_id):
                         key=firex_id.encode('ascii'))
 
 
-def get_basic_event(name, type, event_timestamp=time.time()):
+def get_basic_event(name, event_type, timestamp=None, event_timestamp=time.time()):
+    if timestamp is None:
+        timestamp = event_timestamp
+
     event_data = {'name': name,
-                  'type': type,
+                  'type': event_type,
+                  'timestamp': timestamp,               # Shouldn't be required, but Lumens needs it!
                   'event_timestamp': event_timestamp}
 
     # Not all types map to states (e.g. task-results), so only populate state for some event types.
-    if type in TASK_EVENT_TO_STATE:
-        event_data['state'] = TASK_EVENT_TO_STATE[type]
+    if event_type in TASK_EVENT_TO_STATE:
+        event_data['state'] = TASK_EVENT_TO_STATE[event_type]
 
     return event_data
 
@@ -108,7 +108,8 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         # This piece of -redundant- data is just because Lumens can't make local_received query-able
 
         basic_event_data = get_basic_event(name=name,
-                                           type=event.get('type'),
+                                           event_type=event.get('type'),
+                                           timestamp=event['timestamp'],
                                            event_timestamp=event['local_received'])
 
         event.update(**basic_event_data)

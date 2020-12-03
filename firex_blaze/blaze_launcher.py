@@ -13,7 +13,6 @@ from firex_blaze.blaze_helper import get_blaze_dir
 logger = setup_console_logging(__name__)
 
 
-
 class FireXBlazeLauncher(TrackingService):
 
     instance_name = 'blaze'
@@ -55,8 +54,13 @@ class FireXBlazeLauncher(TrackingService):
                 ]
 
     def start(self, args, uid=None, **kwargs)->{}:
-        if args.disable_blaze:
-            logger.debug("Blaze disabled; will not launch subprocess.")
+        # FIXME: need an explicit way for env/install to expect Blaze to run. Implicitly via installed module is bad.
+        sufficient_args = args.blaze_logs_url_base and args.blaze_kafka_topic and args.blaze_bootstrap_servers
+        if args.disable_blaze or not sufficient_args:
+            if args.disable_blaze:
+                logger.debug("Blaze disabled; will not launch subprocess.")
+            if not sufficient_args:
+                logger.warning("Blaze did not receive sufficient arguments; will not launch subprocess.")
             self.is_ready_for_tasks = True
             return {}
 

@@ -3,6 +3,8 @@ from psutil import Process, TimeoutExpired
 import subprocess
 import time
 
+from firexapp.submit.install_configs import FireXInstallConfigs
+from firexapp.submit.submit import OptionalBoolean
 from firexapp.submit.tracking_service import TrackingService
 from firexapp.common import qualify_firex_bin, select_env_vars
 from firexapp.submit.console import setup_console_logging
@@ -26,7 +28,8 @@ class FireXBlazeLauncher(TrackingService):
     def extra_cli_arguments(self, arg_parser):
 
         arg_parser.add_argument('--disable_blaze', '-disable_blaze',
-                                help='Disable blaze data collection', default=None, const=True, nargs='?')
+                                help='Disable blaze data collection', default=None, const=True, nargs='?',
+                                action=OptionalBoolean)
 
         arg_parser.add_argument('--blaze_logs_url_base',
                                 help='Server URL from which logs can be fetched.',
@@ -42,20 +45,21 @@ class FireXBlazeLauncher(TrackingService):
 
 
     @classmethod
-    def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
+    def _create_blaze_command(cls, uid, args, broker_recv_ready_file, logs_url_base):
         return [qualify_firex_bin("firex_blaze"),
                 "--uid", str(uid),
                 "--logs_dir", uid.logs_dir,
                 "--broker_recv_ready_file", broker_recv_ready_file,
-                '--logs_url_base', args.blaze_logs_url_base,
+                '--logs_url_base', logs_url_base,
                 '--kafka_topic', args.blaze_kafka_topic,
                 '--bootstrap_servers', args.blaze_bootstrap_servers,
                 '--instance_name', cls.instance_name,
                 ]
 
-    def start(self, args, uid=None, **kwargs)->{}:
-        # FIXME: need an explicit way for env/install to expect Blaze to run. Implicitly via installed module is bad.
-        sufficient_args = args.blaze_logs_url_base and args.blaze_kafka_topic and args.blaze_bootstrap_servers
+    def start(self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs) -> {}:
+        super().start(args, install_configs, uid=uid, **kwargs)
+        logs_url_base = install_configs.get_logs_root_url()
+        sufficient_args = logs_url_base and args.blaze_kafka_topic and args.blaze_bootstrap_servers
         if args.disable_blaze or not sufficient_args:
             if args.disable_blaze:
                 logger.debug("Blaze disabled; will not launch subprocess.")
@@ -71,7 +75,7 @@ class FireXBlazeLauncher(TrackingService):
 
         self.start_time = time.time()
         with open(self.stdout_file, 'w+') as f:
-            pid = subprocess.Popen(self._create_blaze_command(uid, args, self.broker_recv_ready_file),
+            pid = subprocess.Popen(self._create_blaze_command(uid, args, self.broker_recv_ready_file, logs_url_base),
                                    stdout=f, stderr=subprocess.STDOUT,
                                    close_fds=True, env=select_env_vars(['PATH'])).pid
 

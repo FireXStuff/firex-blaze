@@ -58,7 +58,13 @@ class FireXBlazeLauncher(TrackingService):
 
     def start(self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs) -> {}:
         super().start(args, install_configs, uid=uid, **kwargs)
-        logs_url_base = install_configs.get_logs_root_url()
+
+        try:
+            logs_url_base = install_configs.get_logs_root_url()
+        except Exception:
+            # TODO: Should the get_logs_root_url always return?
+            logs_url_base = None
+
         sufficient_args = logs_url_base and args.blaze_kafka_topic and args.blaze_bootstrap_servers
         if args.disable_blaze or not sufficient_args:
             if args.disable_blaze:

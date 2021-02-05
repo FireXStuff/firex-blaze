@@ -31,7 +31,7 @@ def _parse_blaze_args():
                         required=True)
     parser.add_argument('--broker_recv_ready_file', help='File to create immediately before capturing celery events.',
                         default=None)
-    parser.add_argument('--logs_url_base', help='Webserver used from which logs can be accessed.',
+    parser.add_argument('--logs_url', help='Webserver used from which logs can be accessed.',
                         default=None)
 
     parser.add_argument('--kafka_topic', help='Topic use for the Kafka bus', required=True)
@@ -56,15 +56,10 @@ def init_blaze():
 
     signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))
 
-    if args.logs_url_base:
-        logs_url = args.logs_url_base + args.logs_dir
-    else:
-        logs_url = None
-
     celery_app = celery_app_from_logs_dir(run_metadata.logs_dir)
     blaze_sender_config = BlazeSenderConfig(args.kafka_topic, args.bootstrap_servers.split(','))
     recording_file = get_blaze_events_file(run_metadata.logs_dir, args.instance_name)
-    return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, logs_url, recording_file
+    return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, args.logs_url, recording_file
 
 
 def main():

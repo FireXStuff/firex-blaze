@@ -31,7 +31,7 @@ class FireXBlazeLauncher(TrackingService):
                                 help='Disable blaze data collection', default=None, const=True, nargs='?',
                                 action=OptionalBoolean)
 
-        arg_parser.add_argument('--blaze_logs_url_base',
+        arg_parser.add_argument('--blaze_logs_url',
                                 help='Server URL from which logs can be fetched.',
                                 default=None)
 
@@ -45,12 +45,12 @@ class FireXBlazeLauncher(TrackingService):
 
 
     @classmethod
-    def _create_blaze_command(cls, uid, args, broker_recv_ready_file, logs_url_base):
+    def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
         return [qualify_firex_bin("firex_blaze"),
                 "--uid", str(uid),
                 "--logs_dir", uid.logs_dir,
                 "--broker_recv_ready_file", broker_recv_ready_file,
-                '--logs_url_base', logs_url_base,
+                '--logs_url', uid.logs_url,
                 '--kafka_topic', args.blaze_kafka_topic,
                 '--bootstrap_servers', args.blaze_bootstrap_servers,
                 '--instance_name', cls.instance_name,
@@ -58,14 +58,7 @@ class FireXBlazeLauncher(TrackingService):
 
     def start(self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs) -> {}:
         super().start(args, install_configs, uid=uid, **kwargs)
-
-        try:
-            logs_url_base = install_configs.get_logs_root_url()
-        except Exception:
-            # TODO: Should the get_logs_root_url always return?
-            logs_url_base = None
-
-        sufficient_args = logs_url_base and args.blaze_kafka_topic and args.blaze_bootstrap_servers
+        sufficient_args = uid.logs_url and args.blaze_kafka_topic and args.blaze_bootstrap_servers
         if args.disable_blaze or not sufficient_args:
             if args.disable_blaze:
                 logger.debug("Blaze disabled; will not launch subprocess.")
@@ -81,7 +74,7 @@ class FireXBlazeLauncher(TrackingService):
 
         self.start_time = time.time()
         with open(self.stdout_file, 'w+') as f:
-            pid = subprocess.Popen(self._create_blaze_command(uid, args, self.broker_recv_ready_file, logs_url_base),
+            pid = subprocess.Popen(self._create_blaze_command(uid, args, self.broker_recv_ready_file),
                                    stdout=f, stderr=subprocess.STDOUT,
                                    close_fds=True, env=select_env_vars(['PATH'])).pid
 

@@ -8,6 +8,8 @@ import time
 from getpass import getuser
 
 from kafka import KafkaProducer
+from kafka.errors import NoBrokersAvailable
+
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
 from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES
 
@@ -63,7 +65,8 @@ class KafkaSenderThread(BrokerEventConsumerThread):
                  logs_url: str,
                  max_retry_attempts: int = None,
                  receiver_ready_file: str = None,
-                 recording_file: str = None):
+                 recording_file: str = None,
+                 max_kafka_connection_retries: int = 2):
 
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
         self.submitter = getuser()
@@ -72,9 +75,26 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         self.kafka_topic = config.kafka_topic
         self.recording_file = recording_file
 
-        self.producer = KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers)
+        # Connect to bootstrap servers and get a KafkaProducer instance
+        self.producer = self.get_kafka_producer(config, max_kafka_connection_retries)
+
         self.uuid_to_task_name_mapping = {}
         self.root_task = {'uuid': None, 'is_complete': False}
+
+    @classmethod
+    def get_kafka_producer(cls, config, max_kafka_connection_retries):
+        _retries = 0
+        while True:
+            try:
+                return KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers)
+            except NoBrokersAvailable as e:
+                if _retries < max_kafka_connection_retries:
+                    _retries += 1
+                    logger.exception(e)
+                    logger.warning(f'Retrying connecting to boostrap servers '
+                                   f'[retry {_retries}/{max_kafka_connection_retries}]')
+                else:
+                    raise
 
     def _is_root_complete(self):
         return self.root_task['is_complete']

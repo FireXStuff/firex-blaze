@@ -39,10 +39,10 @@ class FireXBlazeLauncher(TrackingService):
         arg_parser.add_argument('--blaze_kafka_topic',
                                 help="Topic used for Blaze's Kafka bus",
                                 default=None)
+
         arg_parser.add_argument('--blaze_bootstrap_servers',
                                 help='Comma separated list of Kafka bootrap servers.',
                                 default=None)
-
 
     @classmethod
     def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
@@ -67,7 +67,7 @@ class FireXBlazeLauncher(TrackingService):
             self.is_ready_for_tasks = True
             return {}
 
-        blaze_debug_dir = get_blaze_dir(uid.logs_dir, self.instance_name)
+        blaze_debug_dir = get_blaze_dir(uid.logs_dir)
         os.makedirs(blaze_debug_dir, exist_ok=True)
         self.broker_recv_ready_file = os.path.join(blaze_debug_dir, 'blaze_celery_recvr_ready')
         self.stdout_file = os.path.join(blaze_debug_dir, 'blaze.stdout')
@@ -94,3 +94,7 @@ class FireXBlazeLauncher(TrackingService):
                 logger.debug("Blaze up after %.2f s" % (time.time() - self.start_time))
 
         return self.is_ready_for_tasks
+
+    def get_version(self):
+        import firex_blaze
+        return firex_blaze.__version__

@@ -13,7 +13,8 @@ from firexapp.broker_manager.broker_factory import RedisManager
 from firexapp.events.model import FireXRunMetadata
 
 from firex_blaze.blaze_event_consumer import KafkaSenderThread
-from firex_blaze.blaze_helper import get_blaze_dir, BlazeSenderConfig, get_blaze_events_file
+from firex_blaze.fast_blaze_helper import get_blaze_dir
+from firex_blaze.blaze_helper import BlazeSenderConfig, get_blaze_events_file
 
 logger = logging.getLogger(__name__)
 

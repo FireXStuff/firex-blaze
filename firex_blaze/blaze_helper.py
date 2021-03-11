@@ -6,8 +6,10 @@ from collections import namedtuple
 from pathlib import Path
 import json
 
-from firexapp.submit.uid import Uid
 from kafka.consumer.fetcher import ConsumerRecord
+
+from firex_blaze.fast_blaze_helper import get_blaze_dir
+
 
 KAFKA_EVENTS_FILE_DELIMITER = '--END_OF_EVENT--'
 
@@ -25,12 +27,6 @@ TASK_EVENT_TO_STATE = {
     'task-revoked': 'REVOKED',
     'task-rejected': 'REJECTED',
 }
-
-
-def get_blaze_dir(logs_dir, instance_name=None):
-    if instance_name is None:
-        instance_name = 'blaze'
-    return os.path.join(logs_dir, Uid.debug_dirname, instance_name)
 
 
 def get_blaze_events_file(logs_dir, instance_name=None):

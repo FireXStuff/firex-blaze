@@ -9,7 +9,7 @@ from firexapp.submit.tracking_service import TrackingService
 from firexapp.common import qualify_firex_bin, select_env_vars
 from firexapp.submit.console import setup_console_logging
 
-from firex_blaze.blaze_helper import get_blaze_dir
+from firex_blaze.fast_blaze_helper import get_blaze_dir
 
 
 logger = setup_console_logging(__name__)

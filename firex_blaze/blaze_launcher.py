@@ -96,9 +96,6 @@ class FireXBlazeLauncher(TrackingService):
 
         return self.is_ready_for_tasks
 
-    def get_version(self):
-        import firex_blaze
-        return firex_blaze.__version__
 
     def get_pkg_version_info(self) -> PkgVersionInfo:
         import firex_blaze

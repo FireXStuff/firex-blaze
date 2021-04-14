@@ -10,6 +10,7 @@ from firexapp.common import qualify_firex_bin, select_env_vars
 from firexapp.submit.console import setup_console_logging
 
 from firex_blaze.fast_blaze_helper import get_blaze_dir
+from firexapp.discovery import PkgVersionInfo
 
 
 logger = setup_console_logging(__name__)
@@ -98,3 +99,9 @@ class FireXBlazeLauncher(TrackingService):
     def get_version(self):
         import firex_blaze
         return firex_blaze.__version__
+
+    def get_pkg_version_info(self) -> PkgVersionInfo:
+        import firex_blaze
+        return PkgVersionInfo(pkg=firex_blaze.__package__,
+                              version=firex_blaze.__version__,
+                              commit=firex_blaze._version.get_versions()['full-revisionid'])

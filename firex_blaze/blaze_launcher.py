@@ -99,6 +99,6 @@ class FireXBlazeLauncher(TrackingService):
 
     def get_pkg_version_info(self) -> PkgVersionInfo:
         import firex_blaze
-        return PkgVersionInfo(pkg=firex_blaze.__package__,
+        return PkgVersionInfo(pkg='firex-blaze',
                               version=firex_blaze.__version__,
                               commit=firex_blaze._version.get_versions()['full-revisionid'])

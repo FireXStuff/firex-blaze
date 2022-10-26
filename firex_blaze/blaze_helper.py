@@ -6,15 +6,19 @@ from collections import namedtuple
 from pathlib import Path
 import json
 
+from celery.app.base import Celery
 from kafka.consumer.fetcher import ConsumerRecord
 
+from firexapp.broker_manager.broker_factory import RedisManager
 from firex_blaze.fast_blaze_helper import get_blaze_dir
 
 
 KAFKA_EVENTS_FILE_DELIMITER = '--END_OF_EVENT--'
 
 
-BlazeSenderConfig = namedtuple('BlazeSenderConfig', ['kafka_topic', 'kafka_bootstrap_servers'])
+BlazeSenderConfig = namedtuple(
+    'BlazeSenderConfig',
+    ['kafka_topic', 'kafka_bootstrap_servers', 'max_kafka_connection_retries'])
 
 TASK_EVENT_TO_STATE = {
     'task-sent': 'PENDING',
@@ -53,3 +57,8 @@ def aggregate_blaze_kafka_msgs(firex_id, kafka_msgs):
             event_aggregator.aggregate_events([celery_event])
 
     return event_aggregator.tasks_by_uuid
+
+
+def celery_app_from_logs_dir(logs_dir):
+    return Celery(broker=RedisManager.get_broker_url_from_logs_dir(logs_dir),
+                  accept_content=['pickle', 'json'])

@@ -7,21 +7,14 @@ import signal
 # Prevent dependencies from taking module loading hit of pkg_resources.
 sys.modules["pkg_resources"] = type('noop', (object,), {})
 
-from celery.app.base import Celery
 
-from firexapp.broker_manager.broker_factory import RedisManager
 from firexapp.events.model import FireXRunMetadata
 
-from firex_blaze.blaze_event_consumer import KafkaSenderThread
+from firex_blaze.blaze_event_consumer import BlazeKafkaSenderThread
 from firex_blaze.fast_blaze_helper import get_blaze_dir
-from firex_blaze.blaze_helper import BlazeSenderConfig, get_blaze_events_file
+from firex_blaze.blaze_helper import BlazeSenderConfig, get_blaze_events_file, celery_app_from_logs_dir
 
 logger = logging.getLogger(__name__)
-
-
-def celery_app_from_logs_dir(logs_dir):
-    return Celery(broker=RedisManager.get_broker_url_from_logs_dir(logs_dir),
-                  accept_content=['pickle', 'json'])
 
 
 def _parse_blaze_args():
@@ -59,16 +52,20 @@ def init_blaze():
     signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))
 
     celery_app = celery_app_from_logs_dir(run_metadata.logs_dir)
-    blaze_sender_config = BlazeSenderConfig(args.kafka_topic, args.bootstrap_servers.split(','))
+    blaze_sender_config = BlazeSenderConfig(
+        args.kafka_topic,
+        args.bootstrap_servers.split(','),
+        max_kafka_connection_retries=2)
     recording_file = get_blaze_events_file(run_metadata.logs_dir, args.instance_name)
     return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, args.logs_url, recording_file
 
 
 def main():
     celery_app, run_metadata, receiver_ready_file, blaze_sender_config, logs_url, recording_file = init_blaze()
-    KafkaSenderThread(celery_app, run_metadata, blaze_sender_config, logs_url,
-                      receiver_ready_file=receiver_ready_file,
-                      recording_file=recording_file).run()
+    BlazeKafkaSenderThread(
+        celery_app, run_metadata, blaze_sender_config, logs_url,
+        receiver_ready_file=receiver_ready_file,
+        recording_file=recording_file).run()
 
 
 if __name__ == '__main__':

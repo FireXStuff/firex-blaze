@@ -107,7 +107,7 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         if event['uuid'] == self.root_task['uuid']:
             self.root_task['is_complete'] = event.get('type') in COMPLETE_RUNSTATES
 
-    def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> dict[str, Any]:
+    def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> list[dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement sending.")
 
     def _on_celery_event(self, event):
@@ -116,16 +116,14 @@ class KafkaSenderThread(BrokerEventConsumerThread):
 
         self._update_root_task(event)
 
-        sent_kafka_event = self._send_celery_event_to_kafka(event)
+        sent_kafka_events = self._send_celery_event_to_kafka(event)
 
-        if (
-            sent_kafka_event is not None
-            and self.recording_file
-        ):
+        if sent_kafka_events and self.recording_file:
             # Append the event to the recording file.
             with open(self.recording_file, "a") as rec:
-                event_data_str = json.dumps(sent_kafka_event, sort_keys=True, indent=2)
-                rec.write(event_data_str + KAFKA_EVENTS_FILE_DELIMITER)
+                for e in sent_kafka_events:
+                    event_data_str = json.dumps(e, sort_keys=True, indent=2)
+                    rec.write(event_data_str + KAFKA_EVENTS_FILE_DELIMITER)
 
     def _on_cleanup(self):
         self.producer.flush()
@@ -187,7 +185,7 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
                                     logs_url=self.logs_url,
                                     submitter=self.submitter)
 
-    def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> list[dict[str, Any]]:
         if event.get('type') in BLAZE_SEND_EVENT_TYPES:
             try:
                 kafka_event = self._get_kafka_event(event)
@@ -198,6 +196,6 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
                                 kafka_mssg=kafka_event,
                                 kafka_topic=self.kafka_topic,
                                 firex_id=self.firex_id)
-                return kafka_event
+                return [kafka_event]
 
-        return None
+        return []

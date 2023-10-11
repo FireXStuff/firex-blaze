@@ -83,7 +83,12 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         _retries = 0
         while True:
             try:
-                return KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers)
+                return KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers,
+                                     security_protocol=config.security_protocol,
+                                     ssl_cafile=config.ssl_cafile,
+                                     ssl_certfile=config.ssl_certfile,
+                                     ssl_keyfile=config.ssl_keyfile,
+                                     ssl_password=config.ssl_password)
             except NoBrokersAvailable as e:
                 if _retries < config.max_kafka_connection_retries:
                     _retries += 1

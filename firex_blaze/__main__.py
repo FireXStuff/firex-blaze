@@ -31,7 +31,20 @@ def _parse_blaze_args():
 
     parser.add_argument('--kafka_topic', help='Topic use for the Kafka bus', required=True)
     parser.add_argument('--bootstrap_servers', help='Comma seperated list of Kafka bootrap servers.', required=True)
-
+    parser.add_argument('--security_protocol', help='Protocol used to communicate with brokers. '
+                                                    'Valid values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL. '
+                                                    'Default: PLAINTEXT.',
+                        default='PLAINTEXT')
+    parser.add_argument('--ssl_cafile', help='Optional filename of ca file to use in certificate veriication.',
+                        default=None)
+    parser.add_argument('--ssl_certfile', help='Optional filename of file in pem format containing the client '
+                                               'certificate, as well as any ca certificates needed to establish the '
+                                               'certificate’s authenticity. ',
+                        default=None)
+    parser.add_argument('--ssl_keyfile', help='Optional filename containing the client private key.',
+                        default=None)
+    parser.add_argument('--ssl_password', help='Optional password to be used when loading the certificate chain.',
+                        default=None)
     return parser.parse_args()
 
 
@@ -53,9 +66,15 @@ def init_blaze():
 
     celery_app = celery_app_from_logs_dir(run_metadata.logs_dir)
     blaze_sender_config = BlazeSenderConfig(
-        args.kafka_topic,
-        args.bootstrap_servers.split(','),
-        max_kafka_connection_retries=2)
+        kafka_topic=args.kafka_topic,
+        kafka_bootstrap_servers=args.bootstrap_servers.split(','),
+        max_kafka_connection_retries=2,
+        security_protocol=args.security_protocol,
+        ssl_cafile=args.ssl_cafile,
+        ssl_certfile=args.ssl_certfile,
+        ssl_keyfile=args.ssl_keyfile,
+        ssl_password=args.ssl_password
+    )
     recording_file = get_blaze_events_file(run_metadata.logs_dir, args.instance_name)
     return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, args.logs_url, recording_file
 

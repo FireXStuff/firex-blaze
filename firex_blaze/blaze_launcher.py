@@ -45,17 +45,40 @@ class FireXBlazeLauncher(TrackingService):
                                 help='Comma separated list of Kafka bootrap servers.',
                                 default=None)
 
+        arg_parser.add_argument('--blaze_security_protocol',
+                                help='Protocol used to communicate with brokers. '
+                                     'Valid values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL.',
+                                default='PLAINTEXT')
+        arg_parser.add_argument('--blaze_ssl_cafile',
+                                help='Optional filename of ca file to use in certificate veriication.')
+        arg_parser.add_argument('--blaze_ssl_certfile',
+                                help='Optional filename of file in pem format containing the client certificate, as'
+                                     'well as any ca certificates needed to establish the certificate’s authenticity.')
+        arg_parser.add_argument('--blaze_ssl_keyfile',
+                                help='Optional filename containing the client private key.')
+        arg_parser.add_argument('--blaze_ssl_password',
+                                help='Optional password to be used when loading the certificate chain.')
+
     @classmethod
     def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
-        return [qualify_firex_bin("firex_blaze"),
-                "--uid", str(uid),
-                "--logs_dir", uid.logs_dir,
-                "--broker_recv_ready_file", broker_recv_ready_file,
-                '--logs_url', uid.logs_url,
-                '--kafka_topic', args.blaze_kafka_topic,
-                '--bootstrap_servers', args.blaze_bootstrap_servers,
-                '--instance_name', cls.instance_name,
-                ]
+        cmd = [qualify_firex_bin("firex_blaze"),
+               "--uid", str(uid),
+               "--logs_dir", uid.logs_dir,
+               "--broker_recv_ready_file", broker_recv_ready_file,
+               '--logs_url', uid.logs_url,
+               '--kafka_topic', args.blaze_kafka_topic,
+               '--bootstrap_servers', args.blaze_bootstrap_servers,
+               '--instance_name', cls.instance_name,
+               '--security_protocol', args.blaze_security_protocol]
+        if args.blaze_ssl_cafile:
+            cmd += ['--ssl_cafile', args.blaze_ssl_cafile]
+        if args.blaze_ssl_certfile:
+            cmd += ['--ssl_certfile', args.blaze_ssl_certfile]
+        if args.blaze_ssl_keyfile:
+            cmd += ['--ssl_keyfile', args.blaze_ssl_keyfile]
+        if args.blaze_ssl_password:
+            cmd += ['--ssl_password', args.blaze_ssl_password]
+        return cmd
 
     def start(self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs) -> {}:
         super().start(args, install_configs, uid=uid, **kwargs)
@@ -68,7 +91,7 @@ class FireXBlazeLauncher(TrackingService):
             self.is_ready_for_tasks = True
             return {}
 
-        blaze_debug_dir = get_blaze_dir(uid.logs_dir)
+        blaze_debug_dir = get_blaze_dir(uid.logs_dir, instance_name=self.instance_name)
         os.makedirs(blaze_debug_dir, exist_ok=True)
         self.broker_recv_ready_file = os.path.join(blaze_debug_dir, 'blaze_celery_recvr_ready')
         self.stdout_file = os.path.join(blaze_debug_dir, 'blaze.stdout')

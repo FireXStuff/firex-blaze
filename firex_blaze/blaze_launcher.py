@@ -98,9 +98,14 @@ class FireXBlazeLauncher(TrackingService):
 
         self.start_time = time.time()
         with open(self.stdout_file, 'w+') as f:
-            pid = subprocess.Popen(self._create_blaze_command(uid, args, self.broker_recv_ready_file),
-                                   stdout=f, stderr=subprocess.STDOUT,
-                                   close_fds=True, env=select_env_vars(['PATH'])).pid
+            pid = subprocess.Popen(
+                self._create_blaze_command(uid, args, self.broker_recv_ready_file),
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                close_fds=True,
+                env=select_env_vars(['PATH']),
+                cwd=blaze_debug_dir,
+            ).pid
 
         try:
             Process(pid).wait(0.1)

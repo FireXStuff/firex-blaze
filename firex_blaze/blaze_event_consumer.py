@@ -31,10 +31,12 @@ def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser
                         'UUID': uuid}]}
 
 
-def send_kafka_mssg(kafka_producer: KafkaProducer, kafka_mssg: dict[str, Any], kafka_topic: str, firex_id: str):
+def send_kafka_mssg(kafka_producer: KafkaProducer, kafka_mssg: dict[str, Any], kafka_topic: str, firex_id: str,
+                    partition: Optional[int] = None):
     kafka_producer.send(topic=kafka_topic,
                         value=json.dumps(kafka_mssg).encode('ascii'),
-                        key=firex_id.encode('ascii'))
+                        key=firex_id.encode('ascii'),
+                        partition=partition)
 
 
 def get_basic_event(name, event_type, timestamp=None, event_timestamp=time.time()):
@@ -64,15 +66,17 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         celery_app,
         run_metadata: FireXRunMetadata,
         config: BlazeSenderConfig,
-        max_retry_attempts: Optional[int]=None,
-        receiver_ready_file: Optional[str]=None,
-        recording_file: Optional[str]=None,
+        max_retry_attempts: Optional[int] = None,
+        receiver_ready_file: Optional[str] = None,
+        recording_file: Optional[str] = None,
+        partition: Optional[int] = None,
     ):
 
         super().__init__(celery_app, max_retry_attempts, receiver_ready_file)
         self.firex_id = run_metadata.firex_id
         self.kafka_topic = config.kafka_topic
         self.recording_file = recording_file
+        self.partition = partition
 
         # Connect to bootstrap servers and get a KafkaProducer instance
         self.producer = self.get_kafka_producer(config)
@@ -200,7 +204,8 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
                 send_kafka_mssg(kafka_producer=self.producer,
                                 kafka_mssg=kafka_event,
                                 kafka_topic=self.kafka_topic,
-                                firex_id=self.firex_id)
+                                firex_id=self.firex_id,
+                                partition=self.partition)
                 return [kafka_event]
 
         return []

@@ -136,7 +136,7 @@ class KafkaSenderThread(BrokerEventConsumerThread):
 
     def _on_cleanup(self):
         self.producer.flush()
-        self.producer.close()
+        self.producer.close(timeout=60*2)
 
 
 class BlazeKafkaSenderThread(KafkaSenderThread):

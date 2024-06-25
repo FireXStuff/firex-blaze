@@ -1,5 +1,6 @@
 import argparse
 import logging
+import logging.handlers
 import os
 import sys
 import signal
@@ -55,12 +56,20 @@ def init_blaze():
 
     blaze_dir = get_blaze_dir(run_metadata.logs_dir, args.instance_name)
     os.makedirs(blaze_dir, exist_ok=True)
-    logging.basicConfig(filename=os.path.join(blaze_dir, 'blaze.log'),
-                        level=logging.DEBUG,
-                        format='[%(asctime)s][%(levelname)s][%(name)s]: %(message)s',
-                        datefmt="%Y-%m-%d %H:%M:%S")
+    logging.basicConfig(
+        level=logging.DEBUG,
+        handlers=[
+            logging.handlers.RotatingFileHandler(
+                os.path.join(blaze_dir, 'blaze.log'),
+                maxBytes=20*1024*1024, # Max size of a log file (20 MB)
+                backupCount=0,
+            )
+        ],
+        format='[%(asctime)s][%(levelname)s][%(name)s]: %(message)s',
+        datefmt="%Y-%m-%d %H:%M:%S")
+
     logging.getLogger('kafka.producer').setLevel(logging.INFO)
-    logger.info('Starting Blaze with args: %s' % args)
+    logger.info(f'Starting Blaze with args: {args}')
 
     signal.signal(signal.SIGTERM, lambda _, __: sys.exit(1))
 

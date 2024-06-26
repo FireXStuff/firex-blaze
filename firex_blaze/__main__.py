@@ -62,7 +62,7 @@ def init_blaze():
             logging.handlers.RotatingFileHandler(
                 os.path.join(blaze_dir, 'blaze.log'),
                 maxBytes=20*1024*1024, # Max size of a log file (20 MB)
-                backupCount=0,
+                backupCount=1,
             )
         ],
         format='[%(asctime)s][%(levelname)s][%(name)s]: %(message)s',

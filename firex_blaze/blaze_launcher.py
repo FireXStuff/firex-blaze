@@ -63,6 +63,7 @@ class FireXBlazeLauncher(TrackingService):
     def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
         cmd = [qualify_firex_bin("firex_blaze"),
                "--uid", str(uid),
+               "--firex_requester", uid.firex_requester,
                "--logs_dir", uid.logs_dir,
                "--broker_recv_ready_file", broker_recv_ready_file,
                '--logs_url', uid.logs_url,

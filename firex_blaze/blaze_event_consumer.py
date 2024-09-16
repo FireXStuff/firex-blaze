@@ -23,9 +23,10 @@ BLAZE_SEND_EVENT_TYPES = (
     'task-instrumentation')
 
 
-def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser()) -> dict[str, Any]:
+def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser(), firex_requester=None) -> dict[str, Any]:
     return {'FIREX_ID': firex_id,
             'SUBMITTER': submitter,
+            'FIREX_REQUESTER': firex_requester,
             'LOGS_URL': logs_url,               # Shouldn't be required, but Lumens needs it!
             'EVENTS': [{'DATA': event_data,
                         'UUID': uuid}]}
@@ -157,6 +158,7 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
             receiver_ready_file, recording_file)
 
         self.submitter = getuser()
+        self.firex_requester = run_metadata.firex_requester
         self.firex_id = run_metadata.firex_id
         self.logs_url = logs_url
         self.kafka_topic = config.kafka_topic
@@ -184,7 +186,7 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
         basic_event_data = get_basic_event(name=name,
                                            event_type=event.get('type'),
                                            timestamp=event['timestamp'],
-                                           event_timestamp=event['local_received'])
+                                           event_timestamp=event['local_received'],)
 
         event.update(**basic_event_data)
 
@@ -192,7 +194,8 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
                                     event_data=event,
                                     uuid=uuid,
                                     logs_url=self.logs_url,
-                                    submitter=self.submitter)
+                                    submitter=self.submitter,
+                                    firex_requester=self.firex_requester)
 
     def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> list[dict[str, Any]]:
         if event.get('type') in BLAZE_SEND_EVENT_TYPES:

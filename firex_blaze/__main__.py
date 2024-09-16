@@ -25,6 +25,8 @@ def _parse_blaze_args():
                         required=True)
     parser.add_argument("--uid", help="FireX UID for the run to keep task data for.",
                         required=True)
+    parser.add_argument("--firex_requester", help="Requester username, if different than running user",
+                        required=True)
     parser.add_argument('--broker_recv_ready_file', help='File to create immediately before capturing celery events.',
                         default=None)
     parser.add_argument('--logs_url', help='Webserver used from which logs can be accessed.',
@@ -52,7 +54,7 @@ def _parse_blaze_args():
 def init_blaze():
     args = _parse_blaze_args()
 
-    run_metadata = FireXRunMetadata(args.uid, args.logs_dir, None, None)
+    run_metadata = FireXRunMetadata(args.uid, args.logs_dir, None, None, args.firex_requester)
 
     blaze_dir = get_blaze_dir(run_metadata.logs_dir, args.instance_name)
     os.makedirs(blaze_dir, exist_ok=True)

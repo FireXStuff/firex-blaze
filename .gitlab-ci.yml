@@ -30,6 +30,7 @@ upload-pkg:
   stage: upload
   script: 
     - pip install keyrings.alt
+    - git config --global --add safe.directory /builds/FireXStuff/firex-blaze
     - python setup.py version
     - firex-build upload_pip
   only:

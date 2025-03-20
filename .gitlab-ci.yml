@@ -17,6 +17,7 @@ default:
     - source venv/bin/activate
     - pip install --upgrade pip
     - pip install --upgrade firexbuilder
+    - git config --global --add safe.directory /builds/FireXStuff/firex-blaze
     
 build:
   stage: build
@@ -30,7 +31,6 @@ upload-pkg:
   stage: upload
   script: 
     - pip install keyrings.alt
-    - git config --global --add safe.directory /builds/FireXStuff/firex-blaze
     - python setup.py version
     - firex-build upload_pip
   only:

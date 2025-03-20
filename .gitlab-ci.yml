@@ -30,6 +30,7 @@ upload-pkg:
   stage: upload
   script: 
     - pip install keyrings.alt
+    - python setup.py version
     - firex-build upload_pip
   only:
     - tags

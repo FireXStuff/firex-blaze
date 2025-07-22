@@ -12,15 +12,29 @@ from kafka import KafkaProducer
 from kafka.errors import NoBrokersAvailable
 
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
-from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES
+from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES, RunStates
 
-from firex_blaze.blaze_helper import BlazeSenderConfig, TASK_EVENT_TO_STATE, KAFKA_EVENTS_FILE_DELIMITER
+from firex_blaze.blaze_helper import BlazeSenderConfig, KAFKA_EVENTS_FILE_DELIMITER
 
 logger = logging.getLogger(__name__)
 
-BLAZE_SEND_EVENT_TYPES = (
-    'task-succeeded', 'task-failed', 'task-revoked', 'task-started-info', 'task-completed', 'task-results',
-    'task-instrumentation')
+TASK_EVENT_TO_STATE = {
+    'task-started-info': 'STARTED',
+    RunStates.FAILED.to_celery_event_type(): 'FAILURE',
+    RunStates.SUCCEEDED.to_celery_event_type(): 'SUCCESS',
+    RunStates.REVOKED.to_celery_event_type(): 'REVOKED',
+    RunStates.REVOKE_COMPLETED.to_celery_event_type(): 'REVOKED',
+    # historically were mapped but never sent.
+    # 'task-sent': 'PENDING',
+    # 'task-received': 'RECEIVED',
+    # 'task-started': 'STARTED',
+    # 'task-rejected': 'REJECTED',
+    # 'task-retried': 'RETRY',
+}
+
+BLAZE_SEND_EVENT_TYPES = tuple(
+    list(TASK_EVENT_TO_STATE.keys()) + ['task-completed', 'task-results', 'task-instrumentation']
+)
 
 
 def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser(), firex_requester=None) -> dict[str, Any]:
@@ -114,10 +128,15 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         ):
             self.root_task['uuid'] = event['root_id']
 
-        if event['uuid'] == self.root_task['uuid']:
-            self.root_task['is_complete'] = event.get('type') in COMPLETE_RUNSTATES
+        if (
+            event['uuid'] == self.root_task['uuid']
+            # crazy things can happen with the celery task state model;
+            # avoid switching out of completed.
+            and RunStates.is_complete_state(event.get('type'))
+        ):
+            self.root_task['is_complete'] = True
 
-    def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> list[dict[str, Any]]:
+    def _send_celery_event_to_kafka(self, celery_event: dict[str, Any]) -> list[dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement sending.")
 
     def _on_celery_event(self, event):
@@ -166,12 +185,11 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
 
     def _get_kafka_event(self, event: dict[str, Any]) -> dict[str, Any]:
         uuid = event.pop('uuid')
-
         if uuid not in self.uuid_to_task_name_mapping and 'long_name' in event:
             self.uuid_to_task_name_mapping[uuid] = event['long_name']
 
         if uuid in self.uuid_to_task_name_mapping:
-            name = self.uuid_to_task_name_mapping[uuid]
+            task_name = self.uuid_to_task_name_mapping[uuid]
         else:
             # No need to produce this event since it won't be processed by Lumens anyways
             raise NoNameForEvent(f'No task name found for {event}; can not send the event')
@@ -179,28 +197,27 @@ class BlazeKafkaSenderThread(KafkaSenderThread):
         # Remove result since we only should report firex_result, not the native result
         event.pop('result', None)
 
-        # Add the event_timestamp (copy of the local_received), since the native timestamp that
-        # Celery provides is broken (its local time instead of UTC, and utcoffset is inaccurate).
-        # This piece of -redundant- data is just because Lumens can't make local_received query-able
+        basic_event_data = get_basic_event(
+            name=task_name,
+            event_type=event.get('type'),
+            timestamp=event['timestamp'],
+            # Add the event_timestamp (copy of the local_received), since the native timestamp that
+            # Celery provides is broken (its local time instead of UTC, and utcoffset is inaccurate).
+            # This piece of -redundant- data is just because Lumens can't make local_received query-able
+            event_timestamp=event['local_received'])
 
-        basic_event_data = get_basic_event(name=name,
-                                           event_type=event.get('type'),
-                                           timestamp=event['timestamp'],
-                                           event_timestamp=event['local_received'],)
+        return format_kafka_message(
+            firex_id=self.firex_id,
+            event_data=event | basic_event_data,
+            uuid=uuid,
+            logs_url=self.logs_url,
+            submitter=self.submitter,
+            firex_requester=self.firex_requester)
 
-        event.update(**basic_event_data)
-
-        return format_kafka_message(firex_id=self.firex_id,
-                                    event_data=event,
-                                    uuid=uuid,
-                                    logs_url=self.logs_url,
-                                    submitter=self.submitter,
-                                    firex_requester=self.firex_requester)
-
-    def _send_celery_event_to_kafka(self, event: dict[str, Any]) -> list[dict[str, Any]]:
-        if event.get('type') in BLAZE_SEND_EVENT_TYPES:
+    def _send_celery_event_to_kafka(self, celery_event: dict[str, Any]) -> list[dict[str, Any]]:
+        if celery_event.get('type') in BLAZE_SEND_EVENT_TYPES:
             try:
-                kafka_event = self._get_kafka_event(event)
+                kafka_event = self._get_kafka_event(celery_event)
             except NoNameForEvent as e:
                 logger.exception(e)
             else:

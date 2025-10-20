@@ -8,8 +8,8 @@ import time
 from getpass import getuser
 from typing import Optional, Any
 
-from kafka import KafkaProducer
-from kafka.errors import NoBrokersAvailable
+from confluent_kafka import Producer, KafkaException
+from confluent_kafka.admin import AdminClient
 
 from firexapp.events.broker_event_consumer import BrokerEventConsumerThread
 from firexapp.events.model import FireXRunMetadata, COMPLETE_RUNSTATES, RunStates
@@ -46,12 +46,31 @@ def format_kafka_message(firex_id, event_data, uuid, logs_url, submitter=getuser
                         'UUID': uuid}]}
 
 
-def send_kafka_mssg(kafka_producer: KafkaProducer, kafka_mssg: dict[str, Any], kafka_topic: str, firex_id: str,
+
+def send_kafka_mssg(kafka_producer: Producer, kafka_mssg: dict[str, Any], kafka_topic: str, firex_id: str,
                     partition: Optional[int] = None):
-    kafka_producer.send(topic=kafka_topic,
-                        value=json.dumps(kafka_mssg).encode('ascii'),
-                        key=firex_id.encode('ascii'),
-                        partition=partition)
+    """Send message using confluent-kafka Producer."""
+    try:
+        kafka_producer.produce(
+            topic=kafka_topic,
+            value=json.dumps(kafka_mssg).encode('ascii'),
+            key=firex_id.encode('ascii'),
+        )
+        # Poll to handle any internal events and queued delivery reports (in case of delivery callback functions)
+        kafka_producer.poll(0)
+    except BufferError:
+        # Buffer is full, wait for messages to be delivered
+        logger.warning('Kafka producer buffer full, waiting for delivery...')
+        kafka_producer.poll(1)
+        # Retry the send
+        kafka_producer.produce(
+            topic=kafka_topic,
+            value=json.dumps(kafka_mssg).encode('ascii'),
+            key=firex_id.encode('ascii'),
+        )
+        kafka_producer.poll(0)
+    except KafkaException as e:
+        logger.error(f'Failed to send Kafka message: {e}')
 
 
 def get_basic_event(name, event_type, timestamp=None, event_timestamp=time.time()):
@@ -93,28 +112,56 @@ class KafkaSenderThread(BrokerEventConsumerThread):
         self.recording_file = recording_file
         self.partition = partition
 
-        # Connect to bootstrap servers and get a KafkaProducer instance
+        # Connect to bootstrap servers and get a Producer instance
         self.producer = self.get_kafka_producer(config)
+        logger.debug (f'Kafka producer created for topic {self.kafka_topic}')
         self.root_task = {'uuid': None, 'is_complete': False}
 
     @classmethod
-    def get_kafka_producer(cls, config: BlazeSenderConfig) -> KafkaProducer:
+    def get_kafka_producer(cls, config: BlazeSenderConfig) -> Producer:
+        """Create confluent-kafka Producer with retry logic."""
         _retries = 0
+
+        # Build configuration dictionary for confluent-kafka
+        producer_config = {
+            'bootstrap.servers': ','.join(config.kafka_bootstrap_servers)
+                if isinstance(config.kafka_bootstrap_servers, list)
+                else config.kafka_bootstrap_servers,
+            'security.protocol': config.security_protocol,
+            'ssl.ca.location': config.ssl_cafile,
+            'ssl.certificate.location': config.ssl_certfile,
+            'ssl.key.location': config.ssl_keyfile,
+            'ssl.key.password': config.ssl_password,
+        }
+
         while True:
             try:
-                return KafkaProducer(bootstrap_servers=config.kafka_bootstrap_servers,
-                                     security_protocol=config.security_protocol,
-                                     ssl_cafile=config.ssl_cafile,
-                                     ssl_certfile=config.ssl_certfile,
-                                     ssl_keyfile=config.ssl_keyfile,
-                                     ssl_password=config.ssl_password)
-            except NoBrokersAvailable as e:
+                # Test connection by creating AdminClient
+                admin_client = AdminClient({
+                    'bootstrap.servers': producer_config['bootstrap.servers'],
+                    'security.protocol': producer_config.get('security.protocol', 'PLAINTEXT'),
+                    'ssl.ca.location': producer_config.get('ssl.ca.location'),
+                    'ssl.certificate.location': producer_config.get('ssl.certificate.location'),
+                    'ssl.key.location': producer_config.get('ssl.key.location'),
+                    'ssl.key.password': producer_config.get('ssl.key.password'),
+                })
+
+                # Test connection by getting cluster metadata
+                metadata = admin_client.list_topics(timeout=10)
+                logger.info(f'Successfully connected to Kafka cluster with {len(metadata.brokers)} brokers')
+
+                # Create and return the producer
+                return Producer(producer_config)
+
+            except KafkaException as e:
                 if _retries < config.max_kafka_connection_retries:
                     _retries += 1
                     logger.exception(e)
-                    logger.warning(f'Retrying connecting to boostrap servers '
+                    logger.warning(f'Retrying connecting to bootstrap servers '
                                    f'[retry {_retries}/{config.max_kafka_connection_retries}]')
+                    time.sleep(min(2 ** _retries, 30))  # Exponential backoff
                 else:
+                    logger.error(f'Failed to connect to Kafka after {config.max_kafka_connection_retries} retries')
                     raise
 
     def _is_root_complete(self):
@@ -155,8 +202,16 @@ class KafkaSenderThread(BrokerEventConsumerThread):
                     rec.write(event_data_str + KAFKA_EVENTS_FILE_DELIMITER)
 
     def _on_cleanup(self):
-        self.producer.flush()
-        self.producer.close(timeout=60*2)
+        """Flush and close the producer with proper timeout handling."""
+        logger.info('Flushing Kafka producer...')
+
+        # Flush with timeout - returns number of messages still in queue
+        remaining = self.producer.flush(timeout=120)
+
+        if remaining > 0:
+            logger.warning(f'{remaining} messages were not delivered before timeout')
+        else:
+            logger.info('All messages successfully delivered to Kafka')
 
 
 class BlazeKafkaSenderThread(KafkaSenderThread):

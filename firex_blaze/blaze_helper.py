@@ -7,7 +7,6 @@ import json
 from typing import Optional
 
 from celery.app.base import Celery
-from kafka.consumer.fetcher import ConsumerRecord
 
 from firexapp.events.event_aggregator import FireXEventAggregator
 from firexapp.broker_manager.broker_factory import RedisManager
@@ -50,8 +49,7 @@ def get_kafka_events(logs_dir, instance_name=None):
 
 def aggregate_blaze_kafka_msgs(firex_id, kafka_msgs):
     event_aggregator = FireXEventAggregator()
-    for kafka_msg in kafka_msgs:
-        kafka_event = kafka_msg.value if isinstance(kafka_msg, ConsumerRecord) else kafka_msg
+    for kafka_event in kafka_msgs:
         if kafka_event['FIREX_ID'] == firex_id:
             inner_event = kafka_event['EVENTS'][0]
             celery_event = dict(inner_event['DATA'])

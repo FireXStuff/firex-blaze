@@ -38,16 +38,21 @@ def _parse_blaze_args():
                                                     'Valid values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL. '
                                                     'Default: PLAINTEXT.',
                         default='PLAINTEXT')
-    parser.add_argument('--ssl_cafile', help='Optional filename of ca file to use in certificate veriication.',
+
+    # SASL-SSL OAuth 2.0 arguments
+    parser.add_argument('--sasl_mechanism', help='SASL mechanism (e.g., OAUTHBEARER).',
                         default=None)
-    parser.add_argument('--ssl_certfile', help='Optional filename of file in pem format containing the client '
-                                               'certificate, as well as any ca certificates needed to establish the '
-                                               'certificate’s authenticity. ',
+    parser.add_argument('--sasl_oauthbearer_method', help='OAuth bearer method (e.g., oidc).',
                         default=None)
-    parser.add_argument('--ssl_keyfile', help='Optional filename containing the client private key.',
+    parser.add_argument('--sasl_oauthbearer_client_id', help='OAuth client ID.',
                         default=None)
-    parser.add_argument('--ssl_password', help='Optional password to be used when loading the certificate chain.',
+    parser.add_argument('--sasl_oauthbearer_client_secret', help='OAuth client secret.',
                         default=None)
+    parser.add_argument('--sasl_oauthbearer_token_endpoint_url', help='OAuth token endpoint URL.',
+                        default=None)
+    parser.add_argument('--ssl_ca_location', help='CA certificate location for SSL verification.',
+                        default=None)
+
     return parser.parse_args()
 
 
@@ -81,10 +86,12 @@ def init_blaze():
         kafka_bootstrap_servers=args.bootstrap_servers.split(','),
         max_kafka_connection_retries=2,
         security_protocol=args.security_protocol,
-        ssl_cafile=args.ssl_cafile,
-        ssl_certfile=args.ssl_certfile,
-        ssl_keyfile=args.ssl_keyfile,
-        ssl_password=args.ssl_password
+        sasl_mechanism=args.sasl_mechanism,
+        sasl_oauthbearer_method=args.sasl_oauthbearer_method,
+        sasl_oauthbearer_client_id=args.sasl_oauthbearer_client_id,
+        sasl_oauthbearer_client_secret=args.sasl_oauthbearer_client_secret,
+        sasl_oauthbearer_token_endpoint_url=args.sasl_oauthbearer_token_endpoint_url,
+        ssl_ca_location=args.ssl_ca_location,
     )
     recording_file = get_blaze_events_file(run_metadata.logs_dir, args.instance_name)
     return celery_app, run_metadata, args.broker_recv_ready_file, blaze_sender_config, args.logs_url, recording_file

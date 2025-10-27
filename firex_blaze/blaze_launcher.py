@@ -49,15 +49,20 @@ class FireXBlazeLauncher(TrackingService):
                                 help='Protocol used to communicate with brokers. '
                                      'Valid values are: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL.',
                                 default='PLAINTEXT')
-        arg_parser.add_argument('--blaze_ssl_cafile',
-                                help='Optional filename of ca file to use in certificate veriication.')
-        arg_parser.add_argument('--blaze_ssl_certfile',
-                                help='Optional filename of file in pem format containing the client certificate, as'
-                                     'well as any ca certificates needed to establish the certificate’s authenticity.')
-        arg_parser.add_argument('--blaze_ssl_keyfile',
-                                help='Optional filename containing the client private key.')
-        arg_parser.add_argument('--blaze_ssl_password',
-                                help='Optional password to be used when loading the certificate chain.')
+
+        # SASL-SSL OAuth 2.0 arguments
+        arg_parser.add_argument('--blaze_sasl_mechanism',
+                                help='SASL mechanism to use (e.g., OAUTHBEARER).')
+        arg_parser.add_argument('--blaze_sasl_oauthbearer_method',
+                                help='OAuth bearer method (e.g., oidc).')
+        arg_parser.add_argument('--blaze_sasl_oauthbearer_client_id',
+                                help='OAuth client ID.')
+        arg_parser.add_argument('--blaze_sasl_oauthbearer_client_secret',
+                                help='OAuth client secret.')
+        arg_parser.add_argument('--blaze_sasl_oauthbearer_token_endpoint_url',
+                                help='OAuth token endpoint URL.')
+        arg_parser.add_argument('--blaze_ssl_ca_location',
+                                help='CA certificate location for SSL verification.')
 
     @classmethod
     def _create_blaze_command(cls, uid, args, broker_recv_ready_file):
@@ -71,14 +76,21 @@ class FireXBlazeLauncher(TrackingService):
                '--bootstrap_servers', args.blaze_bootstrap_servers,
                '--instance_name', cls.instance_name,
                '--security_protocol', args.blaze_security_protocol]
-        if args.blaze_ssl_cafile:
-            cmd += ['--ssl_cafile', args.blaze_ssl_cafile]
-        if args.blaze_ssl_certfile:
-            cmd += ['--ssl_certfile', args.blaze_ssl_certfile]
-        if args.blaze_ssl_keyfile:
-            cmd += ['--ssl_keyfile', args.blaze_ssl_keyfile]
-        if args.blaze_ssl_password:
-            cmd += ['--ssl_password', args.blaze_ssl_password]
+
+        # SASL-SSL OAuth arguments
+        if hasattr(args, 'blaze_sasl_mechanism') and args.blaze_sasl_mechanism:
+            cmd += ['--sasl_mechanism', args.blaze_sasl_mechanism]
+        if hasattr(args, 'blaze_sasl_oauthbearer_method') and args.blaze_sasl_oauthbearer_method:
+            cmd += ['--sasl_oauthbearer_method', args.blaze_sasl_oauthbearer_method]
+        if hasattr(args, 'blaze_sasl_oauthbearer_client_id') and args.blaze_sasl_oauthbearer_client_id:
+            cmd += ['--sasl_oauthbearer_client_id', args.blaze_sasl_oauthbearer_client_id]
+        if hasattr(args, 'blaze_sasl_oauthbearer_client_secret') and args.blaze_sasl_oauthbearer_client_secret:
+            cmd += ['--sasl_oauthbearer_client_secret', args.blaze_sasl_oauthbearer_client_secret]
+        if hasattr(args, 'blaze_sasl_oauthbearer_token_endpoint_url') and args.blaze_sasl_oauthbearer_token_endpoint_url:
+            cmd += ['--sasl_oauthbearer_token_endpoint_url', args.blaze_sasl_oauthbearer_token_endpoint_url]
+        if hasattr(args, 'blaze_ssl_ca_location') and args.blaze_ssl_ca_location:
+            cmd += ['--ssl_ca_location', args.blaze_ssl_ca_location]
+
         return cmd
 
     def start(self, args, install_configs: FireXInstallConfigs, uid=None, **kwargs) -> {}:

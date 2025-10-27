@@ -21,10 +21,13 @@ class BlazeSenderConfig:
     kafka_bootstrap_servers: list[str]
     max_kafka_connection_retries: int
     security_protocol: str = 'PLAINTEXT'
-    ssl_cafile: Optional[str] = None
-    ssl_certfile: Optional[str] = None
-    ssl_keyfile: Optional[str] = None
-    ssl_password: Optional[str] = None
+    # SASL-SSL OAuth 2.0 parameters
+    sasl_mechanism: Optional[str] = None
+    sasl_oauthbearer_method: Optional[str] = None
+    sasl_oauthbearer_client_id: Optional[str] = None
+    sasl_oauthbearer_client_secret: Optional[str] = None
+    sasl_oauthbearer_token_endpoint_url: Optional[str] = None
+    ssl_ca_location: Optional[str] = None
 
 
 def get_blaze_events_file(logs_dir, instance_name=None):

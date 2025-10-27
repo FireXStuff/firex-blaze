@@ -128,30 +128,28 @@ class KafkaSenderThread(BrokerEventConsumerThread):
                 if isinstance(config.kafka_bootstrap_servers, list)
                 else config.kafka_bootstrap_servers,
             'security.protocol': config.security_protocol,
-            'ssl.ca.location': config.ssl_cafile,
-            'ssl.certificate.location': config.ssl_certfile,
-            'ssl.key.location': config.ssl_keyfile,
-            'ssl.key.password': config.ssl_password,
         }
+
+        # Add SASL-SSL OAuth parameters
+        if config.sasl_mechanism:
+            producer_config['sasl.mechanism'] = config.sasl_mechanism
+        if config.sasl_oauthbearer_method:
+            producer_config['sasl.oauthbearer.method'] = config.sasl_oauthbearer_method
+        if config.sasl_oauthbearer_client_id:
+            producer_config['sasl.oauthbearer.client.id'] = config.sasl_oauthbearer_client_id
+        if config.sasl_oauthbearer_client_secret:
+            producer_config['sasl.oauthbearer.client.secret'] = config.sasl_oauthbearer_client_secret
+        if config.sasl_oauthbearer_token_endpoint_url:
+            producer_config['sasl.oauthbearer.token.endpoint.url'] = config.sasl_oauthbearer_token_endpoint_url
+        if config.ssl_ca_location:
+            producer_config['ssl.ca.location'] = config.ssl_ca_location
 
         while True:
             try:
-                # Test connection by creating AdminClient
-                admin_client = AdminClient({
-                    'bootstrap.servers': producer_config['bootstrap.servers'],
-                    'security.protocol': producer_config.get('security.protocol', 'PLAINTEXT'),
-                    'ssl.ca.location': producer_config.get('ssl.ca.location'),
-                    'ssl.certificate.location': producer_config.get('ssl.certificate.location'),
-                    'ssl.key.location': producer_config.get('ssl.key.location'),
-                    'ssl.key.password': producer_config.get('ssl.key.password'),
-                })
-
-                # Test connection by getting cluster metadata
-                metadata = admin_client.list_topics(timeout=10)
-                logger.info(f'Successfully connected to Kafka cluster with {len(metadata.brokers)} brokers')
-
-                # Create and return the producer
-                return Producer(producer_config)
+                # Create the producer - it will handle connection and authentication
+                producer = Producer(producer_config)
+                logger.info('Successfully created Kafka producer')
+                return producer
 
             except KafkaException as e:
                 if _retries < config.max_kafka_connection_retries:
